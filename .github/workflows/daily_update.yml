@@ -22,15 +22,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 3. 세부 키워드 생성 및 index.html 자동 업데이트 실행
+      - name: 3. 세부 키워드 생성 및 홈페이지·블로그 원고 업데이트 실행
         env:
           TZ: 'Asia/Seoul'
         run: |
           python automation/main.py
 
-      - name: 4. 변경된 홈페이지 자동 저장 및 실시간 배포(Push)
+      - name: 4. 변경된 홈페이지 및 오늘의 블로그 원고 자동 저장(Push)
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Daebong Auto Bot"
-          git add index.html
-          git diff --staged --quiet || (git commit -m "auto(cloud): 매일 밤 9시 세부 키워드 자동 업데이트" && git push)
+          git add index.html automation/output/blog_draft.txt
+          git diff --staged --quiet || (git commit -m "auto(cloud): 매일 밤 9시 홈페이지 및 블로그 원고 자동 생성" && git push)
