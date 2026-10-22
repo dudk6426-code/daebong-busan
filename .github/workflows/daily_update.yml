@@ -15,20 +15,24 @@ concurrency:
 jobs:
   update-homepage:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 1. Checkout
+      - name: 1. 저장소 코드 불러오기
         uses: actions/checkout@v4
-      - name: 2. Setup Python
+
+      - name: 2. 파이썬 환경 준비
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: 3. Run Automation
+
+      - name: 3. 세부 키워드 생성 및 홈페이지 업데이트 실행
         env:
           TZ: 'Asia/Seoul'
         run: |
           python -X utf8 automation/main.py
           python -X utf8 automation/main.py --clear-memo
-      - name: 4. Commit and Push
+
+      - name: 4. 변경된 홈페이지 자동 저장(Push)
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Daebong Auto Bot"
