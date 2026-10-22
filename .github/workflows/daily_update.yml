@@ -2,12 +2,16 @@ name: Daebong Daily Auto SEO Update
 
 on:
   schedule:
-    # 매일 한국 시간 밤 9시 정각 (UTC 12:00) 자동 실행
+    # 매일 한국 시간 밤 9시 정각대 (UTC 12:00) 자동 실행
     - cron: '0 12 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: daebong-main-publisher
+  cancel-in-progress: false
 
 jobs:
   update-homepage:
@@ -26,11 +30,12 @@ jobs:
         env:
           TZ: 'Asia/Seoul'
         run: |
-          python automation/main.py
+          python -X utf8 automation/main.py
+          python -X utf8 automation/main.py --clear-memo
 
-      - name: 4. 변경된 홈페이지 및 오늘의 블로그 원고 자동 저장(Push)
+      - name: 4. 변경된 홈페이지 및 블로그 원고 자동 저장(Push)
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "Daebong Auto Bot"
-          git add index.html automation/output/blog_draft.txt
-          git diff --staged --quiet || (git commit -m "auto(cloud): 매일 밤 9시 홈페이지 및 블로그 원고 자동 생성" && git push)
+          git add index.html automation/output/blog_draft.txt automation/output/blog_clipboard.txt
+          git diff --staged --quiet || (git commit -m "auto(cloud): 홈페이지 및 블로그 원고 자동 업데이트" && git push)
