@@ -13,22 +13,26 @@ KST = timezone(timedelta(hours=9))
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
 INDEX_FILE = PROJECT_DIR / "index.html"
+CASES_DIR = PROJECT_DIR / "auto-cases"
+SITEMAP_FILE = PROJECT_DIR / "sitemap.xml"
 INPUT_DIR = BASE_DIR / "input"
 OUTPUT_DIR = BASE_DIR / "output"
 LOGS_DIR = BASE_DIR / "logs"
 STATE_FILE = LOGS_DIR / "last_processed_memo.json"
 PROCESSED_MEMOS_FILE = LOGS_DIR / "processed_memos.txt"
 
+SITE_URL = "https://daebong-busan.netlify.app"
+
 COMPANY_INFO = {
     "name": "대봉개발",
     "phone": "010-8535-9787",
+    "phone_link": "01085359787",
     "location": "부산광역시 동래구 사직동",
     "area": "부산 · 양산 · 김해 및 경남 지역",
     "badge": "30년 경력 철거·폐기물 직영 · 숨고(Soomgo) 고수 프로필 운영"
 }
 
-# 1. 시·구·동 계층형 지역 사전 (메모에 적힌 실제 동 이름을 다른 동으로 바꾸지 않고 그대로 보존!)
-# 일반 서술어('서면서', '우동집', '수정했습니다') 오인식을 막기 위해 정밀 토큰 매칭을 사용합니다.
+# 1. 시·구·동 계층형 지역 사전 (메모에 적힌 실제 동 이름을 그대로 보존)
 BUSAN_GU_MAP = {
     "사직동": "동래구", "온천동": "동래구", "명륜동": "동래구", "안락동": "동래구", "수안동": "동래구", "낙민동": "동래구", "복천동": "동래구", "칠산동": "동래구", "명장동": "동래구",
     "거제동": "연제구", "연산동": "연제구",
@@ -49,7 +53,6 @@ BUSAN_GU_MAP = {
 }
 
 GYEONGNAM_DONG_MAP = {
-    # 창원·마산·진해 세부 동
     "용원동": ("경남", "창원 진해구 용원동", "창원시 진해구 용원동"),
     "용원": ("경남", "창원 진해구 용원", "창원시 진해구 용원"),
     "석동": ("경남", "창원 진해구 석동", "창원시 진해구 석동"),
@@ -58,7 +61,6 @@ GYEONGNAM_DONG_MAP = {
     "팔용동": ("경남", "창원 의창구 팔용동", "창원시 의창구 팔용동"),
     "합성동": ("경남", "창원 마산 합성동", "창원시 마산회원구 합성동"),
     "양덕동": ("경남", "창원 마산 양덕동", "창원시 마산회원구 양덕동"),
-    # 김해 세부 동·읍·면
     "장유": ("김해", "김해 장유", "김해시 장유"),
     "율하동": ("김해", "김해 율하동", "김해시 율하동"),
     "율하": ("김해", "김해 장유·율하", "김해시 장유·율하"),
@@ -72,7 +74,6 @@ GYEONGNAM_DONG_MAP = {
     "진영읍": ("김해", "김해 진영읍", "김해시 진영읍"),
     "주촌면": ("김해", "김해 주촌면", "김해시 주촌면"),
     "진례면": ("김해", "김해 진례면", "김해시 진례면"),
-    # 양산 세부 동·읍·면
     "물금읍": ("양산", "양산 물금읍", "양산시 물금읍"),
     "물금": ("양산", "양산 물금읍", "양산시 물금읍"),
     "증산": ("양산", "양산 물금·증산", "양산시 물금읍 증산"),
@@ -85,7 +86,6 @@ GYEONGNAM_DONG_MAP = {
     "웅상": ("양산", "양산 웅상", "양산시 웅상(덕계·평산·서창)"),
     "산막공단": ("양산", "양산 산막공단", "양산시 산막공단"),
     "어곡공단": ("양산", "양산 어곡공단", "양산시 어곡공단"),
-    # 거제시 세부 (부산 거제동과 확실히 구분)
     "고현동": ("경남", "경남 거제시 고현동", "경남 거제시 고현동"),
     "옥포동": ("경남", "경남 거제시 옥포동", "경남 거제시 옥포동"),
     "장승포": ("경남", "경남 거제시 장승포", "경남 거제시 장승포")
@@ -150,7 +150,6 @@ AREA_LEVEL_MAP = [
     ("부산 서구", ("부산", "부산 서구", "부산 서구"))
 ]
 
-# 평상시 순환용 거점 지역 16선
 ROTATION_LOCATIONS = [
     {"city": "부산", "short": "동래구 사직동", "full": "부산 동래구 사직동·온천동"},
     {"city": "부산", "short": "연제구 거제동·연산동", "full": "부산 연제구 거제동·연산동"},
@@ -488,7 +487,7 @@ def write_text_atomic(filepath, content):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     try:
-        tmp_path.write_text(content, encoding="utf-8")
+        tmp_path.write_text(content, encoding="utf-8", newline="\n")
         os.replace(tmp_path, path)
     finally:
         if tmp_path.exists():
@@ -498,20 +497,13 @@ def write_text_atomic(filepath, content):
                 pass
 
 def find_valid_token_pos(text, token):
-    """
-    '서면서 상담', '우동집', '견적 수정했습니다' 같은 일반 서술어/명사 속 부분 문자열 오감지를 차단하고,
-    실제 지명으로 쓰인 위치(index)를 반환합니다.
-    """
     pattern = re.compile(re.escape(token))
     for m in pattern.finditer(text):
         start, end = m.start(), m.end()
-        # 앞에 한글이 바로 붙어있으면 제외 (단, '거제동황소부동산'처럼 뒤에 붙는 건 허용하되 아래 조건 검사)
         if start > 0 and ("가" <= text[start - 1] <= "힣"):
-            # 예외: '부산사직동', '연제구거제동', '진해구용원동'처럼 시/구 뒤에 바로 붙은 동 이름은 허용
             prefix_2 = text[max(0, start - 2):start]
             if not prefix_2.endswith(("시", "구", "군", "산", "해", "원")):
                 continue
-        # 뒤에 '서'(서면서), '집'(우동집), '했'(수정했) 등이 바로 이어지면 지명이 아님
         after_char = text[end:end + 1]
         if token in ("서면", "사직", "동래", "양산", "김해", "창원", "마산", "진해") and after_char in ("서", "집", "국", "면"):
             continue
@@ -519,39 +511,28 @@ def find_valid_token_pos(text, token):
     return -1
 
 def detect_location_and_job_from_memo(memo_text):
-    """
-    1) 메모 안에서 발견된 모든 지명 후보를 찾은 뒤,
-       가장 구체적인 행정단위(동·읍·면 > 구·시)이면서 문장 앞쪽(실제 작업지)에 나온 지명을 선택합니다.
-    2) 어떤 동 이름을 적든 다른 동 이름으로 치환하지 않고 그 동 이름을 정확히 보존합니다!
-    """
     candidates = []
-
-    # A. 부산 세부 동·읍·면 검사 (우선순위 레벨 1: 가장 구체적)
     for dong, gu in BUSAN_GU_MAP.items():
         pos = find_valid_token_pos(memo_text, dong)
         if pos != -1:
             candidates.append((1, pos, {"city": "부산", "short": f"{gu} {dong}", "full": f"부산 {gu} {dong}"}))
 
-    # B. 경남/김해/양산 세부 동·읍·면·공단 검사 (우선순위 레벨 1: 가장 구체적)
     for dong_key, (city, short_name, full_name) in GYEONGNAM_DONG_MAP.items():
         pos = find_valid_token_pos(memo_text, dong_key)
         if pos != -1:
             candidates.append((1, pos, {"city": city, "short": short_name, "full": full_name}))
 
-    # C. 구·시·권역 단위 검사 (우선순위 레벨 2: 동 이름이 없을 때 사용)
     for area_key, (city, short_name, full_name) in AREA_LEVEL_MAP:
         pos = find_valid_token_pos(memo_text, area_key)
         if pos != -1:
             candidates.append((2, pos, {"city": city, "short": short_name, "full": full_name}))
 
     if candidates:
-        # 1순위: 더 구체적인 단위(동/읍/면=1 > 시/구=2), 2순위: 메모에서 먼저 등장한 위치(pos 오름차순)
         candidates.sort(key=lambda x: (x[0], x[1]))
         matched_reg = candidates[0][2]
     else:
         matched_reg = {"city": "부산", "short": "부산·경남", "full": "부산 · 양산 · 김해 및 경남 지역"}
 
-    # 작업/품목 매칭
     matched_job = None
     best_score = 0
     for job in TARGET_JOBS:
@@ -566,10 +547,6 @@ def detect_location_and_job_from_memo(memo_text):
     return matched_reg, matched_job
 
 def classify_memo_status(memo_text):
-    """
-    메모가 (1) 상담·견적 문의인지, (2) 작업 예정인지, (3) 실제 완료한 작업인지 구분하여
-    상담 메모를 '작업 완료'로 거짓 작성하는 문제를 원천 차단합니다.
-    """
     if any(w in memo_text for w in ["문의", "견적", "상담", "얼마", "질문", "알아보"]):
         return "inquiry"
     if any(w in memo_text for w in ["예정", "내일", "모레", "다음주", "예약", "방문할", "가기로"]):
@@ -612,8 +589,207 @@ def build_three_titles(reg, job, memo_content="", status="completed"):
         f"{reg['short']} {job['short_name']} 상담 안내 (동네·층수·사진 문자 접수)"
     ]
 
+def render_permanent_case_page(post_data):
+    """각 글마다 고유 URL(/auto-cases/{case_id}/index.html)을 가진 영구 웹페이지를 생성"""
+    case_id = post_data["case_id"]
+    title = post_data["title"]
+    tag = post_data["tag"]
+    date_str = post_data["date"]
+    reg_full = post_data["reg_full"]
+    reg_short = post_data["reg_short"]
+    job_short = post_data["job_short"]
+    kw = post_data["kw"]
+    paragraphs = post_data["paragraphs"]
+    faq_q = post_data["faq_q"]
+    faq_a = post_data["faq_a"]
+
+    page_url = f"{SITE_URL}/auto-cases/{case_id}/"
+    sms_raw = (
+        f"[대봉개발 견적상담]\n"
+        f"▶ 문의번호: {case_id}\n"
+        f"▶ 확인한 글: {reg_short} {job_short}\n"
+        f"1. 동네/층수(엘리베이터 유무): \n"
+        f"2. 희망 날짜: \n"
+        f"3. 현장 사진 2~3장을 첨부해 보내주세요."
+    )
+    sms_href = f"sms:{COMPANY_INFO['phone_link']}?body={quote(sms_raw, safe='')}"
+    meta_desc = f"{reg_full} {job_short} ({tag}). 동네·층수·현장 사진 문자 상담 {COMPANY_INFO['phone']}"
+
+    body_html = "\n".join(
+        f"<p>{escape(p).replace(chr(10), '<br/>' + chr(10))}</p>"
+        for p in paragraphs if p.strip()
+    )
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{escape(title)}</title>
+  <meta name="description" content="{escape(meta_desc, quote=True)}">
+  <link rel="canonical" href="{escape(page_url, quote=True)}">
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0; color: #1f2d28; background: #f4f7f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif;
+      line-height: 1.8; padding-bottom: 92px;
+    }}
+    main {{
+      max-width: 820px; margin: 24px auto; padding: 28px 24px;
+      background: #ffffff; border-radius: 10px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+    }}
+    .nav-links {{ font-size: 14px; margin-bottom: 14px; }}
+    .nav-links a {{ color: #174c42; font-weight: 700; text-decoration: none; }}
+    .tag {{
+      display: inline-block; background: #e6f0ed; color: #174c42;
+      padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: 700;
+    }}
+    h1 {{ font-size: 24px; line-height: 1.45; margin: 12px 0; color: #12241e; }}
+    .meta {{ color: #5c6e66; font-size: 13px; border-bottom: 1px solid #e3ebe7; padding-bottom: 14px; margin-bottom: 20px; }}
+    p {{ margin: 0 0 18px 0; font-size: 16px; }}
+    details {{ background: #f4f7f5; padding: 12px 16px; border-radius: 6px; margin: 18px 0; }}
+    summary {{ font-weight: 700; color: #174c42; cursor: pointer; }}
+    .copy-box {{
+      background: #f9fbf9; border: 1px solid #d5e2dc; border-radius: 8px;
+      padding: 16px; margin-top: 24px;
+    }}
+    textarea {{
+      width: 100%; min-height: 135px; padding: 10px; font: inherit;
+      font-size: 14px; border: 1px solid #c2d4cc; border-radius: 6px; margin-top: 8px;
+    }}
+    .sticky-cta {{
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 9999;
+      display: flex; gap: 8px; padding: 10px 12px;
+      background: rgba(18, 28, 24, 0.96); box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+    }}
+    .sticky-cta a {{
+      flex: 1; text-align: center; padding: 14px 8px; border-radius: 6px;
+      font-weight: 800; font-size: 15px; text-decoration: none;
+    }}
+    .btn-call {{ background: #174c42; color: #ffffff; border: 1px solid #287a6a; }}
+    .btn-sms {{ background: #ffcc00; color: #111111; }}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="nav-links">
+      <a href="/">← 대봉개발 메인 홈페이지</a> &nbsp;|&nbsp; <a href="/auto-cases/">📚 전체 작업·안내 기록 목록</a>
+    </div>
+    <span class="tag">{escape(tag)}</span>
+    <h1>{escape(title)}</h1>
+    <div class="meta">
+      📅 작성일: {escape(date_str)} &nbsp;|&nbsp; 📍 지역: {escape(reg_full)} &nbsp;|&nbsp; 🔎 문의번호: {escape(case_id)}
+    </div>
+    {body_html}
+    <details open>
+      <summary>💡 자주 묻는 질문: {escape(faq_q)}</summary>
+      <p style="margin-top:10px;margin-bottom:0;font-size:15px;">{escape(faq_a)}</p>
+    </details>
+    <div class="copy-box">
+      <strong>📸 사진 문자 상담 안내 ({COMPANY_INFO['phone']})</strong>
+      <div style="font-size:14px;color:#4a5a53;margin-top:4px;">
+        아래 [사진 문자 견적상담] 버튼을 누르시거나, 문자 자동 입력이 안 되는 기기에서는 아래 내용을 복사해 사진과 함께 보내주세요.
+      </div>
+      <textarea readonly aria-label="복사할 견적 문의 양식">{escape(sms_raw)}</textarea>
+    </div>
+    <div class="meta" style="margin-top:20px;border:none;">
+      🏆 {escape(COMPANY_INFO['badge'])} | 관련키워드: {escape(kw)}
+    </div>
+  </main>
+  <nav class="sticky-cta" aria-label="하단 상담 연결">
+    <a class="btn-call" href="tel:{COMPANY_INFO['phone_link']}">📞 전화 상담 ({COMPANY_INFO['phone']})</a>
+    <a class="btn-sms" href="{escape(sms_href, quote=True)}">📸 사진 문자 견적상담</a>
+  </nav>
+</body>
+</html>
+"""
+
+def save_permanent_archive_and_sitemap(post_data):
+    """
+    1) /auto-cases/{case_id}/post.json 및 index.html 영구 저장
+    2) 지금까지 쌓인 모든 글(무제한)을 모아 /auto-cases/index.html 전체 보관함 생성
+    3) 검색엔진 로봇용 /sitemap.xml 자동 갱신
+    """
+    case_id = post_data["case_id"]
+    case_folder = CASES_DIR / case_id
+    case_folder.mkdir(parents=True, exist_ok=True)
+
+    write_text_atomic(case_folder / "post.json", json.dumps(post_data, ensure_ascii=False, indent=2))
+    write_text_atomic(case_folder / "index.html", render_permanent_case_page(post_data))
+
+    # 저장된 모든 영구 글 읽기 (개수 제한 없이 100% 영구 누적)
+    all_posts = []
+    for jf in CASES_DIR.glob("*/post.json"):
+        try:
+            item = json.loads(read_text_safe(jf, required=False))
+            if item.get("case_id") and item.get("title"):
+                all_posts.append(item)
+        except Exception:
+            continue
+
+    all_posts.sort(key=lambda x: (x.get("date", ""), x.get("case_id", "")), reverse=True)
+
+    cards_html = []
+    for item in all_posts:
+        cid = escape(item["case_id"])
+        cards_html.append(
+            f'<article style="background:#fff;padding:18px 20px;border-radius:8px;margin-bottom:14px;border:1px solid #dce6e1;">'
+            f'<div style="font-size:13px;color:#174c42;font-weight:700;">{escape(item.get("tag", ""))} · {escape(item.get("date", ""))}</div>'
+            f'<h2 style="font-size:19px;margin:8px 0;"><a href="/auto-cases/{cid}/" style="color:#12241e;text-decoration:none;">{escape(item["title"])}</a></h2>'
+            f'<div style="font-size:14px;color:#55665e;">📍 {escape(item.get("reg_full", ""))} &nbsp;|&nbsp; <a href="/auto-cases/{cid}/" style="color:#174c42;font-weight:700;">자세히 보기 →</a></div>'
+            f'</article>'
+        )
+
+    archive_index_html = f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>부산·경남 철거·폐기물 전체 작업 및 안내 기록 | 대봉개발</title>
+  <meta name="description" content="대봉개발의 부산·양산·김해·경남 지역별 철거 및 폐기물 처리 현장 기록과 견적 안내 전체 보관함입니다.">
+  <link rel="canonical" href="{SITE_URL}/auto-cases/">
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; background: #f4f7f5; color: #1f2d28; font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", sans-serif; line-height: 1.7; padding-bottom: 80px; }}
+    main {{ max-width: 860px; margin: 24px auto; padding: 0 16px; }}
+    h1 {{ font-size: 24px; color: #12241e; }}
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="/" style="color:#174c42;font-weight:700;text-decoration:none;">← 대봉개발 메인 홈페이지로 돌아가기</a></p>
+    <h1>📚 대봉개발 작업 기록 및 지역별 안내 전체 보관함 (총 {len(all_posts)}건 누적)</h1>
+    <p style="color:#4f6159;font-size:15px;">부산·양산·김해·경남 지역의 철거 및 폐기물 수거 기록이 삭제 없이 차곡차곡 영구 보관되는 페이지입니다.</p>
+    {"".join(cards_html)}
+  </main>
+</body>
+</html>
+"""
+    write_text_atomic(CASES_DIR / "index.html", archive_index_html)
+
+    # 검색엔진(구글·네이버) 자동 수집용 sitemap.xml 생성
+    today_iso = datetime.now(KST).strftime("%Y-%m-%d")
+    sitemap_urls = [
+        f"  <url><loc>{SITE_URL}/</loc><lastmod>{today_iso}</lastmod></url>",
+        f"  <url><loc>{SITE_URL}/auto-cases/</loc><lastmod>{today_iso}</lastmod></url>"
+    ]
+    for item in all_posts:
+        cid = escape(item["case_id"])
+        d_iso = item.get("date", today_iso).replace(".", "-")
+        sitemap_urls.append(f"  <url><loc>{SITE_URL}/auto-cases/{cid}/</loc><lastmod>{escape(d_iso)}</lastmod></url>")
+
+    sitemap_xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + "\n".join(sitemap_urls) + "\n"
+        '</urlset>\n'
+    )
+    write_text_atomic(SITEMAP_FILE, sitemap_xml)
+    return len(all_posts)
+
 def ensure_mobile_sticky_cta(html):
-    """구형 하단 고정 바('3초 견적' 등)가 있으면 최신 고정 바로 깔끔하게 교체"""
     sms_body = quote(
         "[대봉개발 사진견적 문의]\n"
         "1. 동네 : \n"
@@ -643,35 +819,29 @@ def ensure_mobile_sticky_cta(html):
 </div>
 <!-- DAEBONG_STICKY_END -->"""
 
-    # 기존 고정 바(마커 버전 또는 이전 주석 버전)가 있으면 새 것으로 교체
     if "<!-- DAEBONG_STICKY_START -->" in html and "<!-- DAEBONG_STICKY_END -->" in html:
-        html = re.sub(
+        return re.sub(
             r"<!-- DAEBONG_STICKY_START -->.*?<!-- DAEBONG_STICKY_END -->",
             sticky_bar_html,
             html,
             flags=re.DOTALL
         )
-        return html
-
     if "daebong-sticky-cta" in html:
-        html = re.sub(
+        return re.sub(
             r"(?:<!-- 대봉개발 모바일.*?-->\s*)?<style>\s*\.daebong-sticky-cta.*?</div\s*>",
             sticky_bar_html,
             html,
             flags=re.DOTALL
         )
-        return html
-
     if "</body>" in html:
         return html.replace("</body>", sticky_bar_html + "\n</body>", 1)
     return html + sticky_bar_html
 
 def is_legacy_exaggerated_post(post_html):
-    """이전 버전에서 생성된 과장 문구('클릭당 만 원', '3초', '수수료 20~30%')가 포함된 옛날 게시글 자동 정리"""
     bad_phrases = ["클릭당 만 원", "수수료(20~30%)", "억지 추가금을 요구하는 일이 비일비재", "3초 사진 견적", "3초 견적받기", "{short}"]
     return any(bp in post_html for bp in bad_phrases)
 
-def update_index_html(new_post_html, case_id):
+def update_index_html(new_post_html, case_id, total_archived_count):
     html = read_text_safe(INDEX_FILE, required=True)
     start_marker = "<!-- AUTO_POSTS_START -->"
     end_marker = "<!-- AUTO_POSTS_END -->"
@@ -694,9 +864,17 @@ def update_index_html(new_post_html, case_id):
             continue
         updated_posts.append(post.strip())
 
+    # 메인 페이지에도 최신 20개 글의 전체 본문이 차곡차곡 쌓이며, 하단 버튼으로 영구 보관함 전체 글과 연결됩니다.
     updated_posts = updated_posts[:20]
 
-    new_middle = "\n" + "\n".join(updated_posts) + "\n"
+    archive_banner = (
+        f'<div class="auto-archive-link" style="text-align:center;margin:20px 0 8px 0;">'
+        f'<a href="/auto-cases/" style="display:inline-block;background:#e6f0ed;color:#174c42;padding:12px 22px;border-radius:6px;font-weight:800;text-decoration:none;border:1px solid #b8d4cb;">'
+        f'📚 지금까지 차곡차곡 누적된 전체 작업·안내 기록 모두 보기 (총 {total_archived_count}건 영구 보관) →'
+        f'</a></div>'
+    )
+
+    new_middle = "\n" + "\n".join(updated_posts) + "\n" + archive_banner + "\n"
     new_html = before + start_marker + new_middle + end_marker + after
     new_html = ensure_mobile_sticky_cta(new_html)
     write_text_atomic(INDEX_FILE, new_html)
@@ -712,10 +890,6 @@ def is_memo_already_processed(memo_hash):
     return any(line.startswith(memo_hash) for line in recorded)
 
 def clear_processed_memo():
-    """
-    원고 생성 시점에 저장해 둔 해시(STATE_FILE)와 현재 memo.txt의 해시가 정확히 일치할 때만 삭제!
-    (Git push 도중 새로 적은 메모가 잘못 삭제되는 현상을 원천 방지)
-    """
     memo_path = INPUT_DIR / "memo.txt"
     current_memo = read_text_safe(memo_path, required=False)
     if not current_memo:
@@ -756,9 +930,11 @@ def run_automation():
     INPUT_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    CASES_DIR.mkdir(parents=True, exist_ok=True)
 
     now = datetime.now(KST)
     today_str = now.strftime("%Y.%m.%d")
+    today_compact = now.strftime("%Y%m%d")
 
     day_count = (now.date() - date(2026, 1, 1)).days
     num_locs = len(ROTATION_LOCATIONS)  # 16
@@ -772,7 +948,6 @@ def run_automation():
     memo_path = INPUT_DIR / "memo.txt"
     memo_content = read_text_safe(memo_path, required=False)
 
-    # 만약 memo.txt에 내용이 있더라도 이미 처리된 해시라면 중복 재발행하지 않고 일반 순환 모드로 전환
     if memo_content:
         memo_hash = compute_memo_hash(memo_content)
         if is_memo_already_processed(memo_hash):
@@ -785,6 +960,7 @@ def run_automation():
         reg, job = detect_location_and_job_from_memo(memo_content)
         status = classify_memo_status(memo_content)
         archetype = select_archetype_for_memo(memo_content, status)
+        # URL 및 폴더 이름으로 100% 안전한 영문·숫자 고유 ID 생성
         case_id = f"memo-{memo_hash}"
 
         if status == "inquiry":
@@ -810,7 +986,6 @@ def run_automation():
             )
             tag = f"실제 현장 기록 · {reg['short']} ({today_str})"
 
-        # 이번에 처리한 메모의 해시와 case_id를 상태 파일에 정확히 기록
         write_text_atomic(STATE_FILE, json.dumps({
             "memo_hash": memo_hash,
             "case_id": case_id,
@@ -821,7 +996,8 @@ def run_automation():
         reg = ROTATION_LOCATIONS[loc_idx]
         job = TARGET_JOBS[job_idx]
         archetype = ARTICLE_ARCHETYPES[arch_idx]
-        case_id = f"guide-{today_str}-{reg['short']}-{job['id']}"
+        guide_hash = hashlib.sha1(f"{today_str}:{reg['short']}:{job['id']}".encode("utf-8")).hexdigest()[:8]
+        case_id = f"guide-{today_compact}-{guide_hash}"
         memo_block = ""
         tag = f"{archetype['badge_label']} · {reg['short']}"
 
@@ -838,6 +1014,24 @@ def run_automation():
     )
     paragraphs.append(faq_section_text)
 
+    # 1. 개별 영구 웹페이지(/auto-cases/{case_id}/index.html) 및 전체 보관함 + 사이트맵 누적 저장!
+    post_data = {
+        "case_id": case_id,
+        "date": today_str,
+        "tag": tag,
+        "title": primary_title,
+        "reg_short": reg["short"],
+        "reg_full": reg["full"],
+        "job_id": job["id"],
+        "job_short": job["short_name"],
+        "kw": job["kw"],
+        "paragraphs": paragraphs[:-1],
+        "faq_q": job["faq_q"],
+        "faq_a": job["faq_a"]
+    }
+    total_archived_count = save_permanent_archive_and_sitemap(post_data)
+
+    # 2. 메인 홈페이지(index.html)에도 최신 글 본문이 차곡차곡 쌓이고 개별 영구 페이지 링크 연결!
     safe_tag = escape(tag)
     safe_title = escape(primary_title)
     safe_case_id = escape(case_id)
@@ -861,7 +1055,7 @@ def run_automation():
 
     new_post_html = f"""<article class="auto-post" data-case-id="{safe_case_id}">
   <span class="tag">{safe_tag}</span>
-  <h3>{safe_title}</h3>
+  <h3><a href="/auto-cases/{safe_case_id}/" style="color:inherit;text-decoration:none;">{safe_title}</a></h3>
   <p>{html_paragraphs}</p>
   <details style="margin-top:12px;background:#f4f7f5;padding:10px 14px;border-radius:6px;cursor:pointer;">
     <summary style="font-weight:700;color:#174c42;">💡 자주 묻는 질문: {safe_faq_q}</summary>
@@ -870,12 +1064,14 @@ def run_automation():
   <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
     <a href="tel:01085359787" style="display:inline-block;background:#174c42;color:#fff;padding:10px 16px;border-radius:4px;text-decoration:none;font-weight:700;font-size:14px;">📞 전화 상담 ({COMPANY_INFO['phone']})</a>
     <a href="sms:01085359787?body={tracked_sms_body}" style="display:inline-block;background:#ffcc00;color:#111;padding:10px 16px;border-radius:4px;text-decoration:none;font-weight:800;font-size:14px;">📸 이 작업 사진 문자로 견적상담</a>
+    <a href="/auto-cases/{safe_case_id}/" style="display:inline-block;background:#e6f0ed;color:#174c42;padding:10px 14px;border-radius:4px;text-decoration:none;font-weight:700;font-size:13px;">🔗 이 글 전용 페이지</a>
   </div>
   <div class="meta">🏆 {escape(COMPANY_INFO['badge'])} | 📍 출장: {safe_meta_loc} 및 {escape(COMPANY_INFO['area'])} | 🔎 관련품목: {safe_meta_kw}</div>
 </article>"""
 
-    update_index_html(new_post_html, case_id)
+    update_index_html(new_post_html, case_id, total_archived_count)
 
+    # 3. 네이버 블로그용 해시태그 및 순수 본문 생성
     kw_list = [k.strip() for k in job["kw"].split(",") if k.strip()]
     clean_short = re.sub(r"[^가-힣a-zA-Z0-9]", "", reg["short"])
     hashtags = "#" + " #".join(kw_list) + f" #{clean_short}철거 #{clean_short}폐기물 #{reg['city']}철거 #{reg['city']}폐기물처리 #대봉개발"
@@ -911,7 +1107,7 @@ def run_automation():
     write_text_atomic(OUTPUT_DIR / "blog_draft.txt", draft_display_text)
     write_text_atomic(OUTPUT_DIR / "blog_clipboard.txt", pure_blog_body)
 
-    print(f"✓ [원고 생성 완료] ({archetype['type_name']}) {primary_title}")
+    print(f"✓ [원고 생성 및 영구 페이지 누적 완료] (총 {total_archived_count}건 보관) {primary_title}")
 
 if __name__ == "__main__":
     try:
