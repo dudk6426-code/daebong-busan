@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://daebong-busan.netlify.app/sitemap.xml
+Sitemap: http://daebong-busan.kr/sitemap.xml
