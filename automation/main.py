@@ -21,7 +21,7 @@ LOGS_DIR = BASE_DIR / "logs"
 STATE_FILE = LOGS_DIR / "last_processed_memo.json"
 PROCESSED_MEMOS_FILE = LOGS_DIR / "processed_memos.txt"
 
-SITE_URL = "https://daebong-busan.netlify.app"
+SITE_URL = "https://daebong-busan.kr"
 
 COMPANY_INFO = {
     "name": "대봉개발",
@@ -1082,7 +1082,7 @@ def run_automation():
         f"📍 출장 지역 : {COMPANY_INFO['area']} (일정 및 작업 여건 협의)\n"
         f"📩 문자 상담 : [동네 + 층수(엘리베이터 유무) + 희망 날짜 + 현장 사진] 문자 전송\n"
         f"📞 직통 문의 : {COMPANY_INFO['phone']}\n"
-        f"🌐 공식 홈페이지 : https://daebong-busan.netlify.app/\n"
+        f"🌐 공식 홈페이지 : https://daebong-busan.kr/\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"{hashtags}"
     )
