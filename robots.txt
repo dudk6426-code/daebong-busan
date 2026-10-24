@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: http://daebong-busan.kr/sitemap.xml
+Sitemap: https://daebong-busan.kr/sitemap.xml
