@@ -1118,3 +1118,5 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"✗ [오류 중단] 자동화 실행 중 문제가 발생했습니다: {exc}", file=sys.stderr)
         sys.exit(1)
+import subprocess, sys
+subprocess.run([sys.executable, "automation/blog_variator.py"], check=False)

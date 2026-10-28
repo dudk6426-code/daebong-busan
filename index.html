@@ -270,7 +270,12 @@ h2{font-size:27px}}
 
 
 
-</style><link href="https://daebong-busan.kr/" rel="canonical"/><script type="application/ld+json">{"@context": "https://schema.org", "@type": "LocalBusiness", "name": "대봉개발", "url": "https://daebong-busan.kr/", "telephone": "+82-10-8535-9787", "description": "부산 동래구 사직동 대봉개발. 숨고 선정 철거·폐기물 처리 분야 최고 평점 및 최고의 고수. 30년 경력의 상가·내부 철거, 원상복구, 심야보일러·구조물 철거 및 폐기물 정리 상담. 부산·양산·김해 및 경남 전 지역 어디든 신속 출장. 010-8535-9787.", "address": {"@type": "PostalAddress", "addressRegion": "부산광역시", "addressLocality": "동래구", "streetAddress": "사직동", "addressCountry": "KR"}, "areaServed": ["부산광역시", "양산시", "김해시", "창원시", "경상남도"], "sameAs": ["https://blog.naver.com/dudk6424", "https://map.naver.com/p/entry/place/1789338727"]}</script><meta property="og:type" content="website"/><meta property="og:title" content="부산·양산·김해·경남 철거·폐기물 정리 - 상가원상복구 대봉개발"/><meta property="og:description" content="부산·양산·김해·경남 철거 및 폐기물 수거 전문 대봉개발. 30년 경력 상가·식당·사무실 원상복구 출장 상담 010-8535-9787"/><meta property="og:url" content="https://daebong-busan.kr/"/><meta property="og:image" content="https://daebong-busan.kr/images/site_photo_1.jpg"/></head><body>
+</style><link href="https://daebong-busan.kr/" rel="canonical"/><script type="application/ld+json">{"@context": "https://schema.org", "@type": "LocalBusiness", "name": "대봉개발", "url": "https://daebong-busan.kr/", "telephone": "+82-10-8535-9787", "description": "부산 동래구 사직동 대봉개발. 숨고 선정 철거·폐기물 처리 분야 최고 평점 및 최고의 고수. 30년 경력의 상가·내부 철거, 원상복구, 심야보일러·구조물 철거 및 폐기물 정리 상담. 부산·양산·김해 및 경남 전 지역 어디든 신속 출장. 010-8535-9787.", "address": {"@type": "PostalAddress", "addressRegion": "부산광역시", "addressLocality": "동래구", "streetAddress": "사직동", "addressCountry": "KR"}, "areaServed": ["부산광역시", "양산시", "김해시", "창원시", "경상남도"], "sameAs": ["https://blog.naver.com/dudk6424", "https://map.naver.com/p/entry/place/1789338727"]}</script><meta property="og:type" content="website"/><meta property="og:title" content="부산·양산·김해·경남 철거·폐기물 정리 - 상가원상복구 대봉개발"/><meta property="og:description" content="부산·양산·김해·경남 철거 및 폐기물 수거 전문 대봉개발. 30년 경력 상가·식당·사무실 원상복구 출장 상담 010-8535-9787"/><meta property="og:url" content="https://daebong-busan.kr/"/><meta property="og:image" content="https://daebong-busan.kr/images/site_photo_1.jpg"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="icon" type="image/png" sizes="192x192" href="/favicon.png"/>
+<link rel="shortcut icon" href="/favicon.ico"/>
+<link rel="apple-touch-icon" href="/favicon.png"/>
+</head><body>
 
 
 
@@ -1140,5 +1145,42 @@ A. 【수거할 가전·화분 종류와 대략적인 개수, 함께 버릴 생�
 <!-- DAEBONG_STICKY_END -->
 
 
+
+
+<style>
+.db-hidden-card { display: none !important; }
+.db-more-wrap { text-align: center; margin: 22px 0 10px; width: 100%; grid-column: 1 / -1; }
+.db-more-btn { display: inline-flex; align-items: center; gap: 8px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 12px 24px; border-radius: 999px; font-weight: 700; font-size: 0.95rem; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+.db-more-btn:hover { background: #dbeafe; }
+</style>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  var grids = document.querySelectorAll("section .grid, .cases-grid, .guide-grid, #auto-cases-list, section ul, section div[style*='grid']");
+  grids.forEach(function(grid) {
+    var sec = grid.closest("section") || grid.parentElement;
+    var txt = sec ? sec.innerText : "";
+    if (txt.indexOf("안내") !== -1 || txt.indexOf("현장") !== -1 || txt.indexOf("사례") !== -1 || txt.indexOf("기록") !== -1) {
+      var cards = Array.from(grid.children).filter(function(el) { return el.tagName !== "SCRIPT" && el.tagName !== "STYLE" && !el.classList.contains("db-more-wrap"); });
+      if (cards.length > 2) {
+        var extraCount = cards.length - 2;
+        cards.slice(2).forEach(function(c) { c.classList.add("db-hidden-card"); });
+        var wrap = document.createElement("div");
+        wrap.className = "db-more-wrap";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "db-more-btn";
+        btn.innerHTML = "📂 다른 지역·작업별 안내 및 누적 기록 더보기 (+" + extraCount + "건)";
+        btn.onclick = function() {
+          var isHidden = cards[2].classList.contains("db-hidden-card");
+          cards.slice(2).forEach(function(c) { c.classList.toggle("db-hidden-card", !isHidden); });
+          btn.innerHTML = isHidden ? "▲ 최근 2개만 간략히 보기" : "📂 다른 지역·작업별 안내 및 누적 기록 더보기 (+" + extraCount + "건)";
+        };
+        wrap.appendChild(btn);
+        grid.appendChild(wrap);
+      }
+    }
+  });
+});
+</script>
 
 </body></html>
