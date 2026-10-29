@@ -1,3 +1,7 @@
+# DAEBONG_ATEXIT_HOOK
+import atexit as _atexit, subprocess as _sp, sys as _sys
+from pathlib import Path as _P
+_atexit.register(lambda: _sp.run([_sys.executable, str(_P(__file__).resolve().parent.parent / 'fix_daebong.py')], check=False))
 import os
 import re
 import sys
@@ -1118,11 +1122,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"✗ [오류 중단] 자동화 실행 중 문제가 발생했습니다: {exc}", file=sys.stderr)
         sys.exit(1)
-import subprocess, sys
-subprocess.run([sys.executable, "automation/blog_variator.py"], check=False)
-
-import subprocess, sys; from pathlib import Path as _P; subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_ui.py")], check=False); subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_blog.py")], check=False)
-
-import subprocess, sys
-from pathlib import Path as _P
-subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "fix_all.py")], check=False)
