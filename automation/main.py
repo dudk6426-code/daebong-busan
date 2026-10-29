@@ -982,7 +982,7 @@ def run_automation():
                 f"■ 【{reg['full']}】 실제 현장 작업 기록 ({today_str})\n"
                 f"👉 작업 메모 : \"{memo_content}\"\n\n"
                 f"현장 여건에 맞춰 반출 동선과 안전 조치를 확인한 뒤 작업을 진행한 기록입니다.\n"
-                f"(※ 아래 안내는 동일 유형의 작업을 알아보시는 분들을 위한 공통 참고 기준입니다.)"
+                f""
             )
             tag = f"실제 현장 기록 · {reg['short']} ({today_str})"
 
@@ -1120,3 +1120,5 @@ if __name__ == "__main__":
         sys.exit(1)
 import subprocess, sys
 subprocess.run([sys.executable, "automation/blog_variator.py"], check=False)
+
+import subprocess, sys; from pathlib import Path as _P; subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_ui.py")], check=False); subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_blog.py")], check=False)
