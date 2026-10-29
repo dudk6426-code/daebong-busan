@@ -1122,3 +1122,7 @@ import subprocess, sys
 subprocess.run([sys.executable, "automation/blog_variator.py"], check=False)
 
 import subprocess, sys; from pathlib import Path as _P; subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_ui.py")], check=False); subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "patch_blog.py")], check=False)
+
+import subprocess, sys
+from pathlib import Path as _P
+subprocess.run([sys.executable, str(_P(__file__).resolve().parent.parent / "fix_all.py")], check=False)
