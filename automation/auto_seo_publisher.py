@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-대봉개발(daebong-busan.kr) SEO 특화 자동 콘텐츠 발행 엔진 v2.0
+대봉개발(daebong-busan.kr) SEO 특화 자동 콘텐츠 발행 엔진 v2.1
 
 핵심 개선 사항:
 1. 세부(롱테일) 키워드 DB(keywords_busan.json) 기반 1주제 1전용 페이지 생성 (/auto-cases/<slug>.html)
 2. 중복 제목/주제 원천 차단 (published_history.json + 단어 Jaccard 유사도 검사)
 3. 5가지 자연스러운 글 유형 자동 로테이션 (체크리스트 / 비용 변수 / 실전 Q&A / 비교 선택 / 실제 현장 일지)
 4. 구글 스팸 정책(Scaled Content Abuse) 및 AI 저품질 표현 자동 차단 필터(QualityGuard)
-5. index.html 비대화 방지 (최신 6건 요약 카드만 노출) + auto-cases/index.html 아카이브 + sitemap.xml 자동 갱신
-6. 외부 pip 패키지 불필요 (Python 3.11+ 표준 라이브러리만 사용, GEMINI_API_KEY 선택 지원)
+5. Gemini API 가용 모델 자동 탐색 (HTTP 404 방지) + 미연결 시 로컬 고품질 원고 폴백
+6. index.html 비대화 방지 (최신 6건 요약 카드만 노출) + auto-cases/index.html 아카이브 + sitemap.xml 자동 갱신
 """
 
 from __future__ import annotations
@@ -32,7 +32,6 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 AUTOMATION_DIR = ROOT_DIR / "automation"
 KEYWORDS_FILE = AUTOMATION_DIR / "keywords_busan.json"
 HISTORY_FILE = AUTOMATION_DIR / "published_history.json"
-MEMO_FILE = AUTOMATION_DIR / "local" / "memo.txt"
 CASES_DIR = ROOT_DIR / "auto-cases"
 INDEX_HTML = ROOT_DIR / "index.html"
 SITEMAP_XML = ROOT_DIR / "sitemap.xml"
@@ -131,13 +130,11 @@ def validate_content_quality(
         if phrase in body_text or phrase in title:
             issues.append(f"금지된 AI 상투어 발견: '{phrase}'")
 
-    # 과도한 명령형/관청 떠넘기기 상투어 반복 체크
     if body_text.count("관할 구청") + body_text.count("관할 지자체") >= 2:
         issues.append("관할 구청/지자체 일반론 문구가 2회 이상 반복됩니다.")
     if body_text.count("확인하시기 바랍니다") + body_text.count("권장합니다") >= 3:
         issues.append("AI 번역투 종결어미('확인하시기 바랍니다/권장합니다')가 과도합니다.")
 
-    # 기존 글과의 제목·본문 유사도 체크
     for prev in history_posts:
         if prev.get("title", "").strip() == title.strip():
             issues.append(f"기존 발행 글과 제목이 동일합니다: {title}")
@@ -153,9 +150,41 @@ def validate_content_quality(
 
 
 # -----------------------------
-# Gemini API 호출 (표준 라이브러리)
+# Gemini API 호출 (가용 모델 자동 탐색으로 404 방지)
 # -----------------------------
-def call_gemini_json(prompt: str, api_key: str, model: str = "gemini-2.5-flash") -> dict[str, Any]:
+def discover_gemini_model(api_key: str) -> str:
+    """API 키에서 사용 가능한 최신 Gemini Flash 모델을 자동 선택."""
+    preferred = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-flash-latest",
+        "gemini-1.5-flash",
+    ]
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        available = [
+            m["name"].replace("models/", "")
+            for m in data.get("models", [])
+            if "generateContent" in m.get("supportedGenerationMethods", [])
+        ]
+        for candidate in preferred:
+            if candidate in available:
+                return candidate
+        for name in available:
+            if "flash" in name and "gemini" in name:
+                return name
+        if available:
+            return available[0]
+    except Exception:
+        pass
+    return "gemini-2.0-flash"
+
+
+def call_gemini_json(prompt: str, api_key: str, model: str) -> dict[str, Any]:
     endpoint = (
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         f"?key={api_key}"
@@ -177,6 +206,7 @@ def call_gemini_json(prompt: str, api_key: str, model: str = "gemini-2.5-flash")
     with urllib.request.urlopen(req, timeout=45) as resp:
         raw = json.loads(resp.read().decode("utf-8"))
     text = raw["candidates"][0]["content"]["parts"][0]["text"]
+    text = re.sub(r"^```json\s*|\s*```$", "", text.strip())
     return json.loads(text)
 
 
@@ -691,11 +721,13 @@ def main() -> int:
     article: dict[str, Any] | None = None
 
     if api_key:
+        model_name = discover_gemini_model(api_key)
+        print(f"[INFO] 선택된 Gemini 모델: {model_name}")
         feedback: list[str] = []
         for attempt in range(1, 4):
             try:
                 prompt = build_llm_prompt(company, target_kw, archetype, feedback or None)
-                candidate = call_gemini_json(prompt, api_key)
+                candidate = call_gemini_json(prompt, api_key, model=model_name)
                 plain = article_to_plain_text(candidate)
                 ok, issues = validate_content_quality(candidate.get("title", ""), plain, history_posts)
                 if ok:
